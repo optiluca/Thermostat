@@ -1,9 +1,18 @@
 import datetime
 import logging
+import sqlite3
 import sys
 import time
 # from logging import FileHandler
 from logging.handlers import TimedRotatingFileHandler
+from sqlite3 import Error
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+import os
+import uuid
 
 from telegram.ext import Updater, CommandHandler, Filters
 
@@ -22,11 +31,12 @@ class Thermostat:
         self.evening_beginning = to_time(config['times']['evening_beginning'])
         self.evening_end = to_time(config['times']['evening_end'])
 
-        self.hysteresis = 1
+        self.hysteresis = 0.5
 
-        self.boiler_state = None
+        self.boiler_state = False
 
         self.logger = setup_logger()
+        self.db_connection = setup_db(create_table=True)
 
         self.telegram_updater = Updater(token=config['tokens']['telegram'], use_context=True)
         self.telegram_dispatcher = self.telegram_updater.dispatcher
@@ -37,8 +47,12 @@ class Thermostat:
         status_handler = CommandHandler('status', self.status)
         self.telegram_dispatcher.add_handler(status_handler)
 
-        set_handler = CommandHandler('set', self.set, pass_args=True, filters=Filters.user(username=["@optiluca", "@PhilosopherChef"]))
+        set_handler = CommandHandler('set', self.set, pass_args=True,
+                                     filters=Filters.user(username=["@optiluca", "@PhilosopherChef"]))
         self.telegram_dispatcher.add_handler(set_handler)
+
+        plot_handler = CommandHandler('plot', self.plot)
+        self.telegram_dispatcher.add_handler(plot_handler)
 
         self.telegram_updater.start_polling()
 
@@ -76,15 +90,22 @@ class Thermostat:
             self.logger.info(status_string)
 
             if t_current > t_target + self.hysteresis:
-                self.boiler_state = False
+                boiler_state = False
+                b_update_state = True
             elif t_current < t_target - self.hysteresis:
-                self.boiler_state = True
+                boiler_state = True
+                b_update_state = True
             else:
-                self.boiler_state = None
+                boiler_state = None
+                b_update_state = False
 
-            if self.boiler_state is not None:
+            if b_update_state:
+                self.boiler_state = boiler_state
                 set_boiler(self.boiler_state)
                 self.logger.info('Boiler state: {}'.format(self.boiler_state))
+
+            add_row_to_db(self.db_connection, time=int(time.time()), sensor_temperature=t_current,
+                          target_temperature=t_target, boiler_on=self.boiler_state)
 
             time.sleep(30)
 
@@ -93,15 +114,12 @@ class Thermostat:
                                  text="Hello!  This is your thermostat. Send /status for current info.  Send /set to change settings")
 
     def status(self, update, context):
-
         message_text = 'Target T: {}, Current T: {}, Boiler status: {}'.format(self.get_target_temp(), read_temp(),
                                                                                self.boiler_state)
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text=message_text)
 
     def set(self, update, context):
-        """Add a job to the queue."""
-        chat_id = update.message.chat_id
         try:
             # args[0] should contain the thing to change, args[1] the new value
             param = context.args[0]
@@ -118,6 +136,34 @@ class Thermostat:
             update.message.reply_text(
                 'Usage: /set <night_temp/day_temp/away_temp, morning_beginning/morning_end/evening_beginning/evening_end>')
 
+    def plot(self, update, context):
+        now = int(time.time())
+        yesterday = now - 3600*24
+
+        # Can't use main connection as it's in a different thread!
+        conn = setup_db()
+        times, sensor_temps, target_temps, boiler_ons = select_data_in_range(conn, yesterday, now)
+
+        times = [datetime.datetime.fromtimestamp(x) for x in times]
+        plt.figure()
+        fig, ax1 = plt.subplots()
+        ax1.set_xlabel('t')
+        ax1.set_ylabel('T')
+        ax1.set_ylim((14, 21))
+        ax1.plot(times, sensor_temps)
+        ax1.plot(times, target_temps)
+
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('boiler_status')
+        ax2.plot(times, boiler_ons)
+
+        fig.tight_layout()
+
+        f_name = str(uuid.uuid4()) + '.png'
+        plt.savefig(f_name)
+
+        context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(f_name, 'rb'))
+        os.remove(f_name)
 
 ######################
 
@@ -137,6 +183,60 @@ def setup_logger(log_file='Thermostat.log', level=logging.INFO):
     l.addHandler(file_handler)
     l.addHandler(stream_handler)
     return l
+
+
+def setup_db(db_file='Thermostat.db', create_table=False):
+    # Connect
+    conn = None
+    try:
+        conn = sqlite3.connect(db_file)
+    except Error as e:
+        print(e)
+
+    if create_table:
+        # Create table
+        create_table_sql = """CREATE TABLE IF NOT EXISTS stats (
+                                time integer PRIMARY KEY,
+                                sensor_temperature real NOT NULL,
+                                target_temperature real NOT NULL,
+                                boiler_on integer NOT NULL
+                            );"""
+
+        try:
+            c = conn.cursor()
+            c.execute(create_table_sql)
+        except Error as e:
+            print(e)
+
+    return conn
+
+
+def add_row_to_db(conn, time=None, sensor_temperature=None, target_temperature=None, boiler_on=None):
+    row = (time, sensor_temperature, target_temperature, boiler_on)
+    sql = ''' INSERT INTO stats(time,sensor_temperature,target_temperature,boiler_on)
+              VALUES(?,?,?,?) '''
+    cur = conn.cursor()
+    cur.execute(sql, row)
+    conn.commit()
+    return cur.lastrowid
+
+
+def select_data_in_range(conn, t_start, t_end):
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM stats WHERE time>=? AND time<?", (t_start, t_end))
+
+    times = []
+    sensor_temps = []
+    target_temps = []
+    boiler_ons = []
+    rows = cur.fetchall()
+    for row in rows:
+        times.append(row[0])
+        sensor_temps.append(row[1])
+        target_temps.append(row[2])
+        boiler_ons.append(row[3])
+
+    return times, sensor_temps, target_temps, boiler_ons
 
 
 def to_time(t):
