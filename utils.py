@@ -2,6 +2,7 @@ import glob
 import time
 
 import gpiozero
+import yaml
 
 RELAY_PIN = 18
 
@@ -42,3 +43,12 @@ def read_temp():
         temp_string = lines[1][equals_pos + 2:]
         temp_c = float(temp_string) / 1000.0
         return temp_c
+
+
+def read_config(file_path):
+    with open(file_path, 'r') as stream:
+        try:
+            config = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+    return config
