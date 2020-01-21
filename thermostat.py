@@ -2,8 +2,8 @@ import datetime
 import logging
 import sys
 import time
+# from logging import FileHandler
 from logging.handlers import TimedRotatingFileHandler
-from logging import FileHandler
 
 from utils import set_boiler, read_temp
 
@@ -46,13 +46,14 @@ def get_target_temp():
 
 
 def main_loop():
+    logger = logging.getLogger()
     while True:
         t_current = read_temp()
         t_target = get_target_temp()
 
         status_string = 'Target T: {}, Current T: {}'.format(t_target, t_current)
-        print(status_string)
-        logging.info(status_string)
+        # print(status_string)
+        logger.info(status_string)
 
         if t_current > t_target + HYST:
             boiler_state = False
@@ -63,19 +64,19 @@ def main_loop():
 
         if boiler_state is not None:
             set_boiler(boiler_state)
-            logging.info('Boiler state: {}'.format(boiler_state))
+            logger.info('Boiler state: {}'.format(boiler_state))
 
         time.sleep(30)
 
 
-def setup_logger(logger_name='SimpleThermostatLogger', log_file='Thermostat.log', level=logging.INFO):
+def setup_logger(log_file='Thermostat.log', level=logging.INFO):
     # Configure log file
-    l = logging.getLogger(logger_name)
+    l = logging.getLogger()
     log_format = "%(asctime)s - %(levelname)s - %(message)s"
 
     formatter = logging.Formatter(log_format)
-    # file_handler = TimedRotatingFileHandler(log_file, when="midnight", interval=1, delay=False)
-    file_handler = FileHandler(log_file, mode='w')
+    file_handler = TimedRotatingFileHandler(log_file, when="midnight", interval=1, delay=False)
+    # file_handler = FileHandler(log_file, mode='w')
     file_handler.setFormatter(formatter)
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
