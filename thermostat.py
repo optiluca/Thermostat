@@ -5,7 +5,7 @@ import time
 # from logging import FileHandler
 from logging.handlers import TimedRotatingFileHandler
 
-from telegram.ext import Updater, CommandHandler
+from telegram.ext import Updater, CommandHandler, Filters
 
 from utils import set_boiler, read_temp, read_config
 
@@ -37,7 +37,7 @@ class Thermostat:
         status_handler = CommandHandler('status', self.status)
         self.telegram_dispatcher.add_handler(status_handler)
 
-        set_handler = CommandHandler('set', self.set, pass_args=True)
+        set_handler = CommandHandler('set', self.set, pass_args=True, filters=Filters.user(username=["@optiluca", "@PhilosopherChef"]))
         self.telegram_dispatcher.add_handler(set_handler)
 
         self.telegram_updater.start_polling()
