@@ -6,6 +6,7 @@ import time
 # from logging import FileHandler
 from logging.handlers import TimedRotatingFileHandler
 from sqlite3 import Error
+import pyowm
 
 import matplotlib
 matplotlib.use("Agg")
@@ -37,6 +38,13 @@ class Thermostat:
 
         self.logger = setup_logger()
         self.db_connection = setup_db(create_table=True)
+
+        # OWM
+        self.owm = pyowm.OWM(config['tokens']['openweathermap'], subscription_type='free')
+        self.lat = config['coordinates']['latitude']
+        self.lon = config['coordinates']['longitude']
+
+        # Telegram
 
         self.telegram_updater = Updater(token=config['tokens']['telegram'], use_context=True)
         self.telegram_dispatcher = self.telegram_updater.dispatcher
@@ -84,8 +92,13 @@ class Thermostat:
         while True:
             t_current = read_temp()
             t_target = self.get_target_temp()
+            try:
+                t_out = self.owm.weather_at_coords(self.lat, self.lon).get_weather().get_temperature(unit='celsius')['temp']
+            except Error as e:
+                print(e)
+                t_out = None
 
-            status_string = 'Target T: {}, Current T: {}'.format(t_target, t_current)
+            status_string = 'Target T: {}, Current T: {}, Outside T: {}'.format(t_target, t_current, t_out)
             # print(status_string)
             self.logger.info(status_string)
 
@@ -105,7 +118,7 @@ class Thermostat:
                 self.logger.info('Boiler state: {}'.format(self.boiler_state))
 
             add_row_to_db(self.db_connection, time=int(time.time()), sensor_temperature=t_current,
-                          target_temperature=t_target, boiler_on=self.boiler_state)
+                          target_temperature=t_target, outside_temperature=t_out, boiler_on=self.boiler_state)
 
             time.sleep(30)
 
@@ -199,6 +212,7 @@ def setup_db(db_file='Thermostat.db', create_table=False):
                                 time integer PRIMARY KEY,
                                 sensor_temperature real NOT NULL,
                                 target_temperature real NOT NULL,
+                                outside_temperature real,
                                 boiler_on integer NOT NULL
                             );"""
 
@@ -211,10 +225,11 @@ def setup_db(db_file='Thermostat.db', create_table=False):
     return conn
 
 
-def add_row_to_db(conn, time=None, sensor_temperature=None, target_temperature=None, boiler_on=None):
-    row = (time, sensor_temperature, target_temperature, boiler_on)
-    sql = ''' INSERT INTO stats(time,sensor_temperature,target_temperature,boiler_on)
-              VALUES(?,?,?,?) '''
+def add_row_to_db(conn, time=None, sensor_temperature=None, target_temperature=None, outside_temperature=None,
+                  boiler_on=None):
+    row = (time, sensor_temperature, target_temperature, boiler_on, outside_temperature)
+    sql = ''' INSERT INTO stats(time,sensor_temperature,target_temperature,boiler_on,outside_temperature)
+              VALUES(?,?,?,?,?) '''
     cur = conn.cursor()
     cur.execute(sql, row)
     conn.commit()
@@ -223,7 +238,7 @@ def add_row_to_db(conn, time=None, sensor_temperature=None, target_temperature=N
 
 def select_data_in_range(conn, t_start, t_end):
     cur = conn.cursor()
-    cur.execute("SELECT * FROM stats WHERE time>=? AND time<?", (t_start, t_end))
+    cur.execute("SELECT time,sensor_temperature,target_temperature,boiler_on FROM stats WHERE time>=? AND time<?", (t_start, t_end))
 
     times = []
     sensor_temps = []
