@@ -95,7 +95,8 @@ class Thermostat:
             t_current = read_temp()
             t_target = self.get_target_temp()
             try:
-                t_out = self.owm.weather_at_coords(self.lat, self.lon).get_weather().get_temperature(unit='celsius')['temp']
+                t_out = None
+                #t_out = self.owm.weather_at_coords(self.lat, self.lon).get_weather().get_temperature(unit='celsius')['temp']
             except Error as e:
                 print(e)
                 t_out = None
