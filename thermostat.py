@@ -8,6 +8,8 @@ from logging.handlers import TimedRotatingFileHandler
 from sqlite3 import Error
 import pyowm
 
+
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
