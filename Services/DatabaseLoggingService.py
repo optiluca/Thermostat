@@ -1,10 +1,10 @@
 import sqlite3
 from sqlite3 import Error
 
+
 class DatabaseLoggingService:
     def __init__(self):
-        self.db_connection = self.__setup_db(create_table=True)
-        pass
+        self.db_connection = self._setup_db(db_file='Thermostat.db', create_table=True)
 
     def add_row_to_db(self, time=None, sensor_temperature=None, target_temperature=None, outside_temperature=None,
                       boiler_on=None):
@@ -18,7 +18,7 @@ class DatabaseLoggingService:
 
     def select_data_in_range(self, t_start, t_end):
         # Can't use main connection as it's in a different thread!
-        conn = self.__setup_db()
+        conn = self._setup_db(db_file='Thermostat.db')
         cur = conn.cursor()
         cur.execute("SELECT time,sensor_temperature,target_temperature,boiler_on FROM stats WHERE time>=? AND time<?",
                     (t_start, t_end))
@@ -36,7 +36,7 @@ class DatabaseLoggingService:
 
         return times, sensor_temps, target_temps, boiler_ons
 
-    def __setup_db(db_file='Thermostat.db', create_table=False):
+    def _setup_db(self, db_file='Thermostat.db', create_table=False):
         # Connect
         conn = None
         try:

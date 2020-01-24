@@ -4,14 +4,15 @@ import sys
 import time
 import uuid
 import logging
+from telegram.ext import Updater, CommandHandler, Filters
+from logging.handlers import TimedRotatingFileHandler
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from utils import to_time, try_read_config
-from telegram.ext import Updater, CommandHandler, Filters
-from logging.handlers import TimedRotatingFileHandler
+
 from Models import Thermostat as TH
 from Services import DatabaseLoggingService as DLS
 
@@ -20,7 +21,7 @@ REFRESH_PERIOD = 30
 
 class ThermostatService:
     def __init__(self, configuration_file):
-        self.logger = self.__setup_logger()
+        self.logger = self._setup_logger()
 
         config = try_read_config(configuration_file)
 
@@ -48,26 +49,25 @@ class ThermostatService:
         pass
 
     def run(self):
-        while self.thermostat.isAlive:
+        while self.thermostat.is_alive:
             self.thermostat.update()
 
             status_string = 'Target T: {}, Current T: {}, Outside T: {}'.format(
-                self.thermostat.targetTemp, self.thermostat.feedbackTemp, self.thermostat.ambientTemp)
+                self.thermostat.target_temp, self.thermostat.feedback_temp, self.thermostat.ambientTemp)
             self.logger.info(status_string)
 
-            self.logger.info('Boiler state: {}'.format(self.thermostat.boilerActive))
+            self.logger.info('Boiler state: {}'.format(self.thermostat.boiler_active))
 
             now = int(time.time())
             self.databaseLoggingService.add_row_to_db(now,
-                                                      self.thermostat.feedbackTemp, self.thermostat.targetTemp,
-                                                      self.thermostat.ambientTemp, self.thermostat.boilerActive)
+                                                      self.thermostat.feedback_temp, self.thermostat.target_temp,
+                                                      self.thermostat.ambientTemp, self.thermostat.boiler_active)
             time.sleep(REFRESH_PERIOD)
 
     def kill(self):
         self.telegram_updater.idle()
         self.thermostat.kill()
         sys.exit(0)
-        pass
 
     def start(self, update, context):
         context.bot.send_message(chat_id=update.effective_chat.id,
@@ -76,8 +76,8 @@ class ThermostatService:
     def status(self, update, context):
         if self.thermostat.try_update_temperatures():
             message_text = 'Target T: {}, Current T: {}, Ambient T: {}, Boiler status: {}'.format(
-                self.thermostat.targetTemp, self.thermostat.feedbackTemp,
-                self.thermostat.ambientTemp, self.thermostat.boilerActive)
+                self.thermostat.target_temp, self.thermostat.feedback_temp,
+                self.thermostat.ambientTemp, self.thermostat.boiler_active)
 
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text=message_text)
@@ -126,7 +126,7 @@ class ThermostatService:
         context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(f_name, 'rb'))
         os.remove(f_name)
 
-    def __setup_logger(log_file='Thermostat.log', level=logging.INFO):
+    def _setup_logger(self, log_file='Thermostat.log', level=logging.INFO):
         # Configure log file
         l = logging.getLogger()
         log_format = "%(asctime)s - %(levelname)s - %(message)s"
@@ -141,12 +141,3 @@ class ThermostatService:
         l.addHandler(stream_handler)
         return l
 
-
-if __name__ == "__main__":
-    print('Starting...')
-    thermostatService = ThermostatService('config.yml')
-
-    try:
-        thermostatService.run()
-    except KeyboardInterrupt:
-        thermostatService.kill()

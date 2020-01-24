@@ -10,12 +10,12 @@ class AmbientTemperatureService:
         pass
 
     def try_get_ambient_temperature(self):
-        ambientTemp = None
+        ambient_temp = None
 
         try:
-            ambientTemp = self.owm.weather_at_coords(self.lat, self.lon).get_weather().get_temperature(unit='celsius')
-            ['temp']
+            ambient_temp = self.owm.weather_at_coords(self.lat, self.lon).get_weather().\
+                get_temperature(unit='celsius')['temp']
         except Exception as e:
             print(e)
 
-        return ambientTemp
+        return ambient_temp

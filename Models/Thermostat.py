@@ -1,46 +1,46 @@
-from Services import AmbientTemperatureService as ATS
-from Services import BoilerActuationService as BAS
-from Services import TargetTemperatureService as TTS
-from Services import TemperatureControlService as TCS
-from Services import TemperatureMeasurementService as TMS
+from Services.AmbientTemperatureService import AmbientTemperatureService
+from Services.BoilerActuationService import BoilerActuationService
+from Services.TargetTemperatureService import TargetTemperatureService
+from Services.TemperatureControlService import TemperatureControlService
+from Services.TemperatureMeasurementService import TemperatureMeasurementService
 
 
 class Thermostat:
     def __init__(self, config):
-        self.isAlive = True
+        self.is_alive = True
 
-        self.boilerActive = False
-        self.targetTemp = None
-        self.feedbackTemp = None
+        self.boiler_active = False
+        self.target_temp = None
+        self.feedback_temp = None
         self.ambientTemp = None
 
-        self.ambientTemperatureService = ATS.AmbientTemperatureService(config)
-        self.boilerActuationService = BAS.BoilerActuationService()
-        self.targetTemperatureService = TTS.TargetTemperatureService(config)
-        self.temperatureControlService = TCS.TemperatureControlService()
-        self.temperatureMeasurementService = TMS.TemperatureMeasurementService()
+        self.ambientTemperatureService = AmbientTemperatureService(config)
+        self.boilerActuationService = BoilerActuationService()
+        self.targetTemperatureService = TargetTemperatureService(config)
+        self.temperatureControlService = TemperatureControlService()
+        self.temperatureMeasurementService = TemperatureMeasurementService()
 
     def update(self):
         try:
             self.try_update_temperatures()
-            self.__try_control_temperature()
-            self.isAlive = True
+            self._try_control_temperature()
+            self.is_alive = True
         except Exception as e:
             print(e)
-            self.isAlive = False
+            self.is_alive = False
 
     def kill(self):
         try:
-            self.__try_set_boiler(False)
-            self.isAlive = False
+            self._try_set_boiler(False)
+            self.is_alive = False
         except Exception as e:
             print(e)
 
     def try_update_temperatures(self):
         try:
-            self.__try_get_feedback_temperature()
-            self.__try_get_target_temperature()
-            self.__try_get_ambient_temperature()
+            self._try_get_feedback_temperature()
+            self._try_get_target_temperature()
+            self._try_get_ambient_temperature()
             return True
         except Exception as e:
             print(e)
@@ -52,36 +52,36 @@ class Thermostat:
                          'night_temp', 'day_temp', 'away_temp']:
             setattr(self.targetTemperatureService, parameter, value)
 
-    def __try_get_feedback_temperature(self):
-        feedbackTemp = self.temperatureMeasurementService.try_get_feedback_temperature()
-        if not feedbackTemp:
+    def _try_get_feedback_temperature(self):
+        feedback_temp = self.temperatureMeasurementService.try_get_feedback_temperature()
+        if not feedback_temp:
             raise Exception("Unable to measure feedback temperature")
-        self.feedbackTemp = feedbackTemp
+        self.feedback_temp = feedback_temp
 
-    def __try_get_target_temperature(self):
-        targetTemp = self.targetTemperatureService.try_get_target_temp()
-        if not targetTemp:
+    def _try_get_target_temperature(self):
+        target_temp = self.targetTemperatureService.try_get_target_temp()
+        if not target_temp:
             raise Exception("Unable to set target temperature")
-        self.targetTemp = targetTemp
+        self.target_temp = target_temp
 
-    def __try_get_ambient_temperature(self):
-        ambientTemp = self.ambientTemperatureService.try_get_ambient_temperature()
-        if not ambientTemp:
+    def _try_get_ambient_temperature(self):
+        ambient_temp = self.ambientTemperatureService.try_get_ambient_temperature()
+        if not ambient_temp:
             raise Exception("Unable to get ambient temperature")
-        self.ambientTemp = ambientTemp
+        self.ambientTemp = ambient_temp
 
-    def __try_control_temperature(self):
-        boilerActive = self.temperatureControlService.try_compute_boiler_activation_signal(self.targetTemp,
-                                                                                           self.feedbackTemp)
-        if boilerActive is None:
+    def _try_control_temperature(self):
+        boiler_active = self.temperatureControlService.try_compute_boiler_activation_signal(self.target_temp,
+                                                                                            self.feedback_temp)
+        if boiler_active is None:
             raise Exception("Unable to compute boiler actuation signal")
 
-        if boilerActive is not self.boilerActive:
-            self.__try_set_boiler(boilerActive)
+        if boiler_active is not self.boiler_active:
+            self._try_set_boiler(boiler_active)
 
-    def __try_set_boiler(self, boilerActive):
-        isSuccess = self.boilerActuationService.try_actuate_boiler(boilerActive)
-        if isSuccess is None:
+    def _try_set_boiler(self, boiler_active):
+        is_success = self.boilerActuationService.try_actuate_boiler(boiler_active)
+        if is_success is None:
             raise Exception("Unable to actuate boiler")
 
-        self.boilerActive = boilerActive
+        self.boiler_active = boiler_active

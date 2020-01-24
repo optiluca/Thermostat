@@ -18,22 +18,22 @@ class TargetTemperatureService:
         now = datetime.datetime.now()
 
         weekday = now.isoweekday()
-        timeOfDay = now.time()
+        time_of_day = now.time()
 
-        isWeekend = weekday >= 6
+        is_weekend = weekday >= 6
 
-        if timeOfDay < self.morning_beginning:
-            targetTemp = self.night_temp
-        elif timeOfDay < self.morning_end:
-            targetTemp = self.day_temp
-        elif timeOfDay < self.evening_beginning:
-            if isWeekend:
-                targetTemp = self.day_temp
+        if time_of_day < self.morning_beginning:
+            target_temp = self.night_temp
+        elif time_of_day < self.morning_end:
+            target_temp = self.day_temp
+        elif time_of_day < self.evening_beginning:
+            if is_weekend:
+                target_temp = self.day_temp
             else:
-                targetTemp = self.away_temp
-        elif timeOfDay < self.evening_end:
-            targetTemp = self.day_temp
+                target_temp = self.away_temp
+        elif time_of_day < self.evening_end:
+            target_temp = self.day_temp
         else:
-            targetTemp = self.night_temp
+            target_temp = self.night_temp
 
-        return targetTemp
+        return target_temp
