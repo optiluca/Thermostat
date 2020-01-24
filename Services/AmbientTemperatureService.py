@@ -1,7 +1,7 @@
 import pyowm
 
 
-class AmbientTemperatureAcquisitionService:
+class AmbientTemperatureService:
     def __init__(self, config):
         # OWM
         self.owm = pyowm.OWM(config['tokens']['openweathermap'], subscription_type='free')
@@ -10,8 +10,8 @@ class AmbientTemperatureAcquisitionService:
         pass
 
     def try_get_ambient_temperature(self):
-        isSuccess = False
         ambientTemp = None
+
         try:
             ambientTemp = self.owm.weather_at_coords(self.lat, self.lon).get_weather().get_temperature(unit='celsius')
             ['temp']
@@ -19,4 +19,4 @@ class AmbientTemperatureAcquisitionService:
         except Exception as e:
             print(e)
 
-        return (isSuccess, ambientTemp)
+        return ambientTemp
