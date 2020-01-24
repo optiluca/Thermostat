@@ -12,12 +12,20 @@ import matplotlib.pyplot as plt
 from utils import to_time, try_read_config
 from telegram.ext import Updater, CommandHandler, Filters
 from logging.handlers import TimedRotatingFileHandler
+from Models import Thermostat as TH
+from Services import DatabaseLoggingService as DLS
+
+REFRESH_PERIOD = 30
 
 
 class ThermostatService:
     def __init__(self, configuration_file):
-        config = try_read_config(configuration_file)
         self.logger = self.__setup_logger()
+
+        config = try_read_config(configuration_file)
+
+        self.thermostat = TH.Thermostat(config)
+        self.databaseLoggingService = DLS.DatabaseLoggingService()
 
         # Telegram
         self.telegram_updater = Updater(token=config['tokens']['telegram'], use_context=True)
@@ -39,25 +47,40 @@ class ThermostatService:
         self.telegram_updater.start_polling()
         pass
 
-    # status_string = 'Target T: {}, Current T: {}, Outside T: {}'.format(self.targetTemp, self.feedbackTemp,
-    #                                                                    self.ambientTemp)
-    # self.logger.info(status_string)
+    def run(self):
+        while self.thermostat.isAlive:
+            self.thermostat.update()
 
-    # self.logger.info('Boiler state: {}'.format(self.boilerActive))
+            status_string = 'Target T: {}, Current T: {}, Outside T: {}'.format(
+                self.thermostat.targetTemp, self.thermostat.feedbackTemp, self.thermostat.ambientTemp)
+            self.logger.info(status_string)
 
-    # self.databaseLoggingService.add_row_to_db(self.feedbackTemp, self.targetTemp, self.ambientTemp,
-    #                                          self.boilerActive)
-    # time.sleep(30)
+            self.logger.info('Boiler state: {}'.format(self.thermostat.boilerActive))
+
+            now = int(time.time())
+            self.databaseLoggingService.add_row_to_db(now,
+                                                      self.thermostat.feedbackTemp, self.thermostat.targetTemp,
+                                                      self.thermostat.ambientTemp, self.thermostat.boilerActive)
+            time.sleep(REFRESH_PERIOD)
+
+    def kill(self):
+        self.telegram_updater.idle()
+        self.thermostat.kill()
+        sys.exit(0)
+        pass
 
     def start(self, update, context):
         context.bot.send_message(chat_id=update.effective_chat.id,
                                  text="Hello!  This is your thermostat. Send /status for current info.  Send /set to change settings")
 
     def status(self, update, context):
-        message_text = 'Target T: {}, Current T: {}, Boiler status: {}'.format(self.get_target_temp(), read_temp(),
-                                                                               self.boiler_state)
-        context.bot.send_message(chat_id=update.effective_chat.id,
-                                 text=message_text)
+        if self.thermostat.try_update_temperatures():
+            message_text = 'Target T: {}, Current T: {}, Ambient T: {}, Boiler status: {}'.format(
+                self.thermostat.targetTemp, self.thermostat.feedbackTemp,
+                self.thermostat.ambientTemp, self.thermostat.boilerActive)
+
+            context.bot.send_message(chat_id=update.effective_chat.id,
+                                     text=message_text)
 
     def set(self, update, context):
         try:
@@ -68,7 +91,7 @@ class ThermostatService:
             if param in ['morning_beginning', 'morning_end', 'evening_beginning', 'evening_end']:
                 value = to_time(value)
 
-            setattr(self, param, value)
+            self.thermostat.set_parameter(param, value)
 
             update.message.reply_text('{} updated to {}'.format(param, value))
 
@@ -80,9 +103,7 @@ class ThermostatService:
         now = int(time.time())
         yesterday = now - 3600 * 24
 
-        # Can't use main connection as it's in a different thread!
-        conn = setup_db()
-        times, sensor_temps, target_temps, boiler_ons = select_data_in_range(conn, yesterday, now)
+        times, sensor_temps, target_temps, boiler_ons = self.databaseLoggingService.select_data_in_range(yesterday, now)
 
         times = [datetime.datetime.fromtimestamp(x) for x in times]
         plt.figure()
@@ -112,7 +133,6 @@ class ThermostatService:
 
         formatter = logging.Formatter(log_format)
         file_handler = TimedRotatingFileHandler(log_file, when="midnight", interval=1, delay=False)
-        # file_handler = FileHandler(log_file, mode='w')
         file_handler.setFormatter(formatter)
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(formatter)
@@ -124,12 +144,9 @@ class ThermostatService:
 
 if __name__ == "__main__":
     print('Starting...')
-
-    thermostat = Thermostat('config.yml')
+    thermostatService = ThermostatService('config.yml')
 
     try:
-        thermostat.main_loop()
+        thermostatService.run()
     except KeyboardInterrupt:
-        thermostat.telegram_updater.idle()
-        set_boiler(False)
-        sys.exit(0)
+        thermostatService.kill()
