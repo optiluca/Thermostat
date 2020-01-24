@@ -15,7 +15,6 @@ class AmbientTemperatureService:
         try:
             ambientTemp = self.owm.weather_at_coords(self.lat, self.lon).get_weather().get_temperature(unit='celsius')
             ['temp']
-            isSuccess = True
         except Exception as e:
             print(e)
 
