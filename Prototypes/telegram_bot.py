@@ -4,7 +4,7 @@ from telegram.ext import Updater
 
 from utils import read_config
 
-CONFIG_FILE = 'config.yml'
+CONFIG_FILE = '../config.yml'
 
 config = read_config(CONFIG_FILE)
 
