@@ -2,7 +2,7 @@ import datetime
 from utils import to_time
 
 
-class TargetTemperatureAcquisitionService:
+class TargetTemperatureService:
     def __init__(self, config):
 
         self.night_temp = config['temperatures']['night_temp']
@@ -15,8 +15,6 @@ class TargetTemperatureAcquisitionService:
         self.evening_end = to_time(config['times']['evening_end'])
 
     def try_get_target_temp(self):
-        isSuccess = True
-
         now = datetime.datetime.now()
 
         weekday = now.isoweekday()
@@ -38,4 +36,4 @@ class TargetTemperatureAcquisitionService:
         else:
             targetTemp = self.night_temp
 
-        return (isSuccess, targetTemp)
+        return targetTemp
