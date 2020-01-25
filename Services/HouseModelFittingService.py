@@ -1,11 +1,13 @@
 from utils import setup_logger
 from Models.House import House
+from Services.DatabaseServices import ThermostatDatabaseService, HouseDatabaseService
 
 
 class HouseModelFittingService:
-    def __init__(self, database_logging_service):
+    def __init__(self):
         self.logger = setup_logger('HouseModelFitting.log')
-        self.database_logging_service = database_logging_service
+        self.house_database_service = HouseDatabaseService(False)
+        self.thermostat_database_service = ThermostatDatabaseService(True)
 
         self.k1_best_fit = None
         self.k2_best_fit = None

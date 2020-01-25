@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from telegram.ext import Updater, CommandHandler, Filters
 from utils import to_time, read_config, setup_logger
 from Models.Thermostat import Thermostat
-from Services.DatabaseLoggingService import DatabaseLoggingService
+from Services.DatabaseServices import ThermostatDatabaseService
 from Services.HouseModelFittingService import HouseModelFittingService
 
 matplotlib.use("Agg")
@@ -20,8 +20,8 @@ class ThermostatService:
     def __init__(self, configuration_file):
         self.logger = setup_logger('Thermostat.log')
 
-        self.database_logging_service = DatabaseLoggingService()
-        self.house_model_fitting_service = HouseModelFittingService(self.database_logging_service)
+        self.thermostat_database_service = ThermostatDatabaseService(False)
+        self.house_model_fitting_service = HouseModelFittingService()
 
         config = read_config(configuration_file)
         if config:
@@ -59,9 +59,9 @@ class ThermostatService:
                     self.thermostat.set_parameter('house_model', house_model)
 
             now = int(time.time())
-            self.database_logging_service.add_row_to_db(now,
-                                                        self.thermostat.feedback_temp, self.thermostat.target_temp,
-                                                        self.thermostat.ambient_temp, self.thermostat.boiler_active)
+            self.thermostat_database_service.add_row_to_db(now,
+                                                           self.thermostat.feedback_temp, self.thermostat.target_temp,
+                                                           self.thermostat.ambient_temp, self.thermostat.boiler_active)
             time.sleep(REFRESH_PERIOD)
 
     def kill(self):
@@ -100,8 +100,8 @@ class ThermostatService:
         now = int(time.time())
         yesterday = now - 3600 * 24
 
-        times, sensor_temps, target_temps, boiler_ons = self.database_logging_service.select_data_in_range(yesterday,
-                                                                                                           now)
+        times, sensor_temps, target_temps, boiler_ons = self.thermostat_database_service.select_data_in_range(yesterday,
+                                                                                                              now)
 
         times = [datetime.datetime.fromtimestamp(x) for x in times]
         plt.figure()
