@@ -13,8 +13,9 @@ import matplotlib.pyplot as plt
 
 from utils import to_time, try_read_config
 
-from Models import Thermostat as TH
-from Services import DatabaseLoggingService as DLS
+from Models.Thermostat import Thermostat
+from Services.DatabaseLoggingService import DatabaseLoggingService
+from Services.HouseModelFittingService import HouseModelFittingService
 
 REFRESH_PERIOD = 30
 
@@ -25,8 +26,9 @@ class ThermostatService:
 
         config = try_read_config(configuration_file)
 
-        self.thermostat = TH.Thermostat(config)
-        self.databaseLoggingService = DLS.DatabaseLoggingService()
+        self.thermostat = Thermostat(config)
+        self.database_logging_service = DatabaseLoggingService()
+        self.house_model_fitting_service = HouseModelFittingService(self.database_logging_service)
 
         # Telegram
         self.telegram_updater = Updater(token=config['tokens']['telegram'], use_context=True)
@@ -50,18 +52,18 @@ class ThermostatService:
 
     def run(self):
         while self.thermostat.is_alive:
+            boiler_active_old = self.thermostat.boiler_active
+
             self.thermostat.update()
+            self.logger.info(self._thermostat_status_string())
 
-            status_string = 'Target T: {}, Current T: {}, Outside T: {}'.format(
-                self.thermostat.target_temp, self.thermostat.feedback_temp, self.thermostat.ambientTemp)
-            self.logger.info(status_string)
-
-            self.logger.info('Boiler state: {}'.format(self.thermostat.boiler_active))
+            if self.thermostat.boiler_active is not boiler_active_old:
+                self._update_house_model()
 
             now = int(time.time())
-            self.databaseLoggingService.add_row_to_db(now,
-                                                      self.thermostat.feedback_temp, self.thermostat.target_temp,
-                                                      self.thermostat.ambientTemp, self.thermostat.boiler_active)
+            self.database_logging_service.add_row_to_db(now,
+                                                        self.thermostat.feedback_temp, self.thermostat.target_temp,
+                                                        self.thermostat.ambientTemp, self.thermostat.boiler_active)
             time.sleep(REFRESH_PERIOD)
 
     def kill(self):
@@ -75,10 +77,7 @@ class ThermostatService:
 
     def status(self, update, context):
         if self.thermostat.try_update_temperatures():
-            message_text = 'Target T: {}, Current T: {}, Ambient T: {}, Boiler status: {}'.format(
-                self.thermostat.target_temp, self.thermostat.feedback_temp,
-                self.thermostat.ambientTemp, self.thermostat.boiler_active)
-
+            message_text = self._thermostat_status_string()
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text=message_text)
 
@@ -103,7 +102,8 @@ class ThermostatService:
         now = int(time.time())
         yesterday = now - 3600 * 24
 
-        times, sensor_temps, target_temps, boiler_ons = self.databaseLoggingService.select_data_in_range(yesterday, now)
+        times, sensor_temps, target_temps, boiler_ons = self.database_logging_service.select_data_in_range(yesterday,
+                                                                                                           now)
 
         times = [datetime.datetime.fromtimestamp(x) for x in times]
         plt.figure()
@@ -141,3 +141,21 @@ class ThermostatService:
         l.addHandler(stream_handler)
         return l
 
+    def _update_house_model(self):
+        if self.thermostat.boiler_active:
+            K = self.house_model_fitting_service.update_K1_best_fit()
+            text_body = 'Latest Fit K1: {}, Best Fit K1: {}, Best Fit K2: {}'
+        else:
+            K = self.house_model_fitting_service.update_K2_best_fit()
+            text_body = 'Latest Fit K2: {}, Best Fit K1: {}, Best Fit K2: {}'
+
+        house_model = self.house_model_fitting_service.create_house_model()
+        self.thermostat.set_parameter('house_model', house_model)
+
+        status_string = text_body.format(K, house_model.K1, house_model.K2)
+        self.logger.info(status_string)
+
+    def _thermostat_status_string(self):
+        return 'Target T: {}, Current T: {}, Ambient T: {}, Boiler status: {}'.format(
+            self.thermostat.target_temp, self.thermostat.feedback_temp,
+            self.thermostat.ambientTemp, self.thermostat.boiler_active)
