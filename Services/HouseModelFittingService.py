@@ -1,5 +1,6 @@
 from Models.House import House
 
+
 class HouseModelFittingService:
     def __init__(self, database_logging_service):
         self.K1_best_fit = None

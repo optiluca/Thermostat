@@ -3,52 +3,50 @@ import os
 import sys
 import time
 import uuid
-import logging
-from telegram.ext import Updater, CommandHandler, Filters
-from logging.handlers import TimedRotatingFileHandler
 import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
-from utils import to_time, try_read_config
-
+from telegram.ext import Updater, CommandHandler, Filters
+from utils import to_time, read_config, setup_logger
 from Models.Thermostat import Thermostat
 from Services.DatabaseLoggingService import DatabaseLoggingService
 from Services.HouseModelFittingService import HouseModelFittingService
+
+matplotlib.use("Agg")
 
 REFRESH_PERIOD = 30
 
 
 class ThermostatService:
     def __init__(self, configuration_file):
-        self.logger = self._setup_logger()
+        self.logger = setup_logger('Thermostat.log')
 
-        config = try_read_config(configuration_file)
-
-        self.thermostat = Thermostat(config)
         self.database_logging_service = DatabaseLoggingService()
         self.house_model_fitting_service = HouseModelFittingService(self.database_logging_service)
 
-        # Telegram
-        self.telegram_updater = Updater(token=config['tokens']['telegram'], use_context=True)
-        self.telegram_dispatcher = self.telegram_updater.dispatcher
+        config = read_config(configuration_file)
+        if config:
+            self.thermostat = Thermostat(config)
 
-        start_handler = CommandHandler('start', self.start)
-        self.telegram_dispatcher.add_handler(start_handler)
+            # Telegram
+            self.telegram_updater = Updater(token=config['tokens']['telegram'], use_context=True)
+            self.telegram_dispatcher = self.telegram_updater.dispatcher
 
-        status_handler = CommandHandler('status', self.status)
-        self.telegram_dispatcher.add_handler(status_handler)
+            start_handler = CommandHandler('start', self.start)
+            self.telegram_dispatcher.add_handler(start_handler)
 
-        set_handler = CommandHandler('set', self.set, pass_args=True,
-                                     filters=Filters.user(username=["@optiluca", "@PhilosopherChef"]))
-        self.telegram_dispatcher.add_handler(set_handler)
+            status_handler = CommandHandler('status', self.status)
+            self.telegram_dispatcher.add_handler(status_handler)
 
-        plot_handler = CommandHandler('plot', self.plot)
-        self.telegram_dispatcher.add_handler(plot_handler)
+            set_handler = CommandHandler('set', self.set, pass_args=True,
+                                         filters=Filters.user(username=["@optiluca", "@PhilosopherChef"]))
+            self.telegram_dispatcher.add_handler(set_handler)
 
-        self.telegram_updater.start_polling()
-        pass
+            plot_handler = CommandHandler('plot', self.plot)
+            self.telegram_dispatcher.add_handler(plot_handler)
+
+            self.telegram_updater.start_polling()
+        else:
+            raise Exception("Unable to load thermostat config")
 
     def run(self):
         while self.thermostat.is_alive:
@@ -125,21 +123,6 @@ class ThermostatService:
 
         context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(f_name, 'rb'))
         os.remove(f_name)
-
-    def _setup_logger(self, log_file='Thermostat.log', level=logging.INFO):
-        # Configure log file
-        l = logging.getLogger()
-        log_format = "%(asctime)s - %(levelname)s - %(message)s"
-
-        formatter = logging.Formatter(log_format)
-        file_handler = TimedRotatingFileHandler(log_file, when="midnight", interval=1, delay=False)
-        file_handler.setFormatter(formatter)
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(formatter)
-        l.setLevel(level)
-        l.addHandler(file_handler)
-        l.addHandler(stream_handler)
-        return l
 
     def _update_house_model(self):
         if self.thermostat.boiler_active:
