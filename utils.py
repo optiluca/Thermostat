@@ -1,6 +1,7 @@
 import datetime
 import yaml
 import logging
+import numpy as np
 from logging.handlers import TimedRotatingFileHandler
 
 
@@ -12,6 +13,13 @@ def read_config(file_path):
         except yaml.YAMLError as exc:
             print(exc)
     return config
+
+
+def select_when_flag_true(x, flag):
+    indices = np.nonzero(flag[1:] != flag[:-1])[0] + 1
+    xs = np.split(x, indices)
+    xs = xs[0::2] if flag[0] else xs[1::2]
+    return xs
 
 
 def to_time(t):
