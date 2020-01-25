@@ -9,6 +9,7 @@ class Thermostat:
     def __init__(self, config):
         self.is_alive = True
 
+        self.boiler_changed_state = False  # TODO remove this and instead event on boiler_active
         self.boiler_active = False
         self.target_temp = None
         self.feedback_temp = None
@@ -21,6 +22,8 @@ class Thermostat:
         self.temperatureMeasurementService = TemperatureMeasurementService()
 
     def update(self):
+        self.boiler_changed_state = False
+
         try:
             self.try_update_temperatures()
             self._try_control_temperature()
@@ -28,13 +31,6 @@ class Thermostat:
         except Exception as e:
             print(e)
             self.is_alive = False
-
-    def kill(self):
-        try:
-            self._try_set_boiler(False)
-            self.is_alive = False
-        except Exception as e:
-            print(e)
 
     def try_update_temperatures(self):
         try:
@@ -45,6 +41,13 @@ class Thermostat:
         except Exception as e:
             print(e)
             return False
+
+    def kill(self):
+        try:
+            self._try_set_boiler(False)
+            self.is_alive = False
+        except Exception as e:
+            print(e)
 
     def set_parameter(self, parameter, value):
         if parameter in ['morning_beginning', 'morning_end',
@@ -86,5 +89,8 @@ class Thermostat:
         is_success = self.boilerActuationService.try_actuate_boiler(boiler_active)
         if is_success is None:
             raise Exception("Unable to actuate boiler")
+
+        if self.boiler_active is not boiler_active:
+            self.boiler_changed_state = True
 
         self.boiler_active = boiler_active

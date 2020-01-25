@@ -50,13 +50,13 @@ class ThermostatService:
 
     def run(self):
         while self.thermostat.is_alive:
-            boiler_active_old = self.thermostat.boiler_active
-
             self.thermostat.update()
             self.logger.info(self._thermostat_status_string())
 
-            if self.thermostat.boiler_active is not boiler_active_old:
-                self._update_house_model()
+            if self.thermostat.boiler_changed_state:
+                house_model = self.house_model_fitting_service.fit_house_model(self.thermostat.boiler_active)
+                if house_model:
+                    self.thermostat.set_parameter('house_model', house_model)
 
             now = int(time.time())
             self.database_logging_service.add_row_to_db(now,
@@ -123,21 +123,6 @@ class ThermostatService:
 
         context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(f_name, 'rb'))
         os.remove(f_name)
-
-    def _update_house_model(self):
-        if self.thermostat.boiler_active:
-            K = self.house_model_fitting_service.update_K1_best_fit()
-            text_body = 'Latest Fit K1: {}, Best Fit K1: {}, Best Fit K2: {}'
-        else:
-            K = self.house_model_fitting_service.update_K2_best_fit()
-            text_body = 'Latest Fit K2: {}, Best Fit K1: {}, Best Fit K2: {}'
-
-        house_model = self.house_model_fitting_service.create_house_model()
-        if house_model:
-            self.thermostat.set_parameter('house_model', house_model)
-
-            status_string = text_body.format(K, house_model.K1, house_model.K2)
-            self.logger.info(status_string)
 
     def _thermostat_status_string(self):
         return 'Target T: {}, Current T: {}, Ambient T: {}, Boiler status: {}'.format(

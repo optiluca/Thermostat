@@ -2,13 +2,13 @@ import numpy as np
 
 
 class House:
-    def __init__(self, K1, K2):
-        self.K1 = K1
-        self.K2 = K2
+    def __init__(self, k1, k2):
+        self.k1 = k1
+        self.k2 = k2
 
     def equilibrium_temperature(self, ambient_temperature, radiator_temperature, boiler_active):
         if boiler_active:
-            temperature = (self.K1 * ambient_temperature + self.K2 * radiator_temperature) / (self.K1 + self.K2)
+            temperature = (self.k1 * ambient_temperature + self.k2 * radiator_temperature) / (self.k1 + self.k2)
         else:
             temperature = ambient_temperature
 
@@ -17,9 +17,9 @@ class House:
     def temperature_at_time(self, initial_temperature, ambient_temperature, radiator_temperature, boiler_active,
                             initial_time, target_time):
         if boiler_active:
-            decay_rate = self.K1 + self.K2
+            decay_rate = self.k1 + self.k2
         else:
-            decay_rate = self.K1
+            decay_rate = self.k1
 
         equilibrium_temperature = self.equilibrium_temperature(ambient_temperature, radiator_temperature, boiler_active)
         time_elapsed = target_time - initial_time
