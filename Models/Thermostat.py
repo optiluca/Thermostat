@@ -71,13 +71,17 @@ class Thermostat:
         self.ambientTemp = ambient_temp
 
     def _try_control_temperature(self):
-        boiler_active = self.temperatureControlService.try_compute_boiler_activation_signal(self.target_temp,
+        control_signal = self.temperatureControlService.try_compute_boiler_control_signal(self.target_temp,
                                                                                             self.feedback_temp)
-        if boiler_active is None:
+        if control_signal is None:
             raise Exception("Unable to compute boiler actuation signal")
 
-        if boiler_active is not self.boiler_active:
-            self._try_set_boiler(boiler_active)
+        if control_signal is 1 and self.boiler_active == False:
+            self._try_set_boiler(True)
+
+        if control_signal is -1 and self.boiler_active == True:
+            self._try_set_boiler(False)
+
 
     def _try_set_boiler(self, boiler_active):
         is_success = self.boilerActuationService.try_actuate_boiler(boiler_active)
