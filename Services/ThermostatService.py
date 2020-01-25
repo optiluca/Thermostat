@@ -63,7 +63,7 @@ class ThermostatService:
             now = int(time.time())
             self.database_logging_service.add_row_to_db(now,
                                                         self.thermostat.feedback_temp, self.thermostat.target_temp,
-                                                        self.thermostat.ambientTemp, self.thermostat.boiler_active)
+                                                        self.thermostat.ambient_temp, self.thermostat.boiler_active)
             time.sleep(REFRESH_PERIOD)
 
     def kill(self):
@@ -159,4 +159,4 @@ class ThermostatService:
     def _thermostat_status_string(self):
         return 'Target T: {}, Current T: {}, Ambient T: {}, Boiler status: {}'.format(
             self.thermostat.target_temp, self.thermostat.feedback_temp,
-            self.thermostat.ambientTemp, self.thermostat.boiler_active)
+            self.thermostat.ambient_temp, self.thermostat.boiler_active)
