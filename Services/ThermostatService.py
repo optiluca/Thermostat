@@ -150,10 +150,11 @@ class ThermostatService:
             text_body = 'Latest Fit K2: {}, Best Fit K1: {}, Best Fit K2: {}'
 
         house_model = self.house_model_fitting_service.create_house_model()
-        self.thermostat.set_parameter('house_model', house_model)
+        if house_model:
+            self.thermostat.set_parameter('house_model', house_model)
 
-        status_string = text_body.format(K, house_model.K1, house_model.K2)
-        self.logger.info(status_string)
+            status_string = text_body.format(K, house_model.K1, house_model.K2)
+            self.logger.info(status_string)
 
     def _thermostat_status_string(self):
         return 'Target T: {}, Current T: {}, Ambient T: {}, Boiler status: {}'.format(
