@@ -20,13 +20,16 @@ class ThermostatDatabaseService:
         sensor_temps = []
         target_temps = []
         boiler_ons = []
+        ambient_temps = []
+
         for row in rows:
             times.append(row[0])
             sensor_temps.append(row[1])
             target_temps.append(row[2])
             boiler_ons.append(row[3])
+            ambient_temps.append(row[4])
 
-        return times, sensor_temps, target_temps, boiler_ons
+        return times, sensor_temps, target_temps, boiler_ons, ambient_temps
 
 
 class HouseDatabaseService:

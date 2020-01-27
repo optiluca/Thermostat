@@ -1,6 +1,7 @@
 import time
 import numpy as np
 from scipy import optimize
+import logging
 from utils import setup_logger, select_when_flag_true
 from Models.House import House
 from Services.DatabaseServices import ThermostatDatabaseService, HouseDatabaseService
@@ -8,7 +9,7 @@ from Services.DatabaseServices import ThermostatDatabaseService, HouseDatabaseSe
 
 class HouseModelFittingService:
     def __init__(self):
-        self.logger = setup_logger('HouseModelFitting.log')
+        self.logger = logging.getLogger()
         self.house_database_service = HouseDatabaseService(False)
         self.thermostat_database_service = ThermostatDatabaseService(True)
 
@@ -99,30 +100,32 @@ class HouseModelFittingService:
         end_time = int(time.time())
         start_time = end_time - 3600 * 24
 
-        times, sensor_temps, target_temps, boiler_ons = \
+        times, sensor_temps, target_temps, boiler_ons, ambient_temps = \
             self.thermostat_database_service.select_data_in_range(start_time, end_time)
 
         times = np.array(times)
         temps = np.array(sensor_temps)
+        ambient_temps = np.array(ambient_temps)
         boiler_ons = np.array(boiler_ons, dtype=np.bool)
-
-        average_ambient_temp = 3  # TODO from DB
 
         if boiler_active:
             sampled_times = select_when_flag_true(times, boiler_ons)
             sampled_temps = select_when_flag_true(temps, boiler_ons)
+            sampled_ambient_temps = select_when_flag_true(ambient_temps, boiler_ons)
         else:
             sampled_times = select_when_flag_true(times, np.logical_not(boiler_ons))
             sampled_temps = select_when_flag_true(temps, np.logical_not(boiler_ons))
+            sampled_ambient_temps = select_when_flag_true(ambient_temps, np.logical_not(boiler_ons))
 
-        sampled_times = sampled_times[0]
+        sampled_times = sampled_times[-1]
         sampled_times = sampled_times - sampled_times[0]
 
-        sampled_temps = sampled_temps[0]
+        sampled_temps = sampled_temps[-1]
+        average_ambient_temp = np.nanmean(sampled_ambient_temps[-1])
 
         return sampled_times, sampled_temps, average_ambient_temp
 
     @staticmethod
     def _update_best_fit(latest_fit, current_best_fit):
         # e.g. confidence weighted average
-        return current_best_fit
+        return latest_fit
