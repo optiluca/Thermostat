@@ -100,8 +100,8 @@ class ThermostatService:
         now = int(time.time())
         yesterday = now - 3600 * 24
 
-        times, sensor_temps, target_temps, boiler_ons = self.thermostat_database_service.select_data_in_range(yesterday,
-                                                                                                              now)
+        times, sensor_temps, target_temps, boiler_ons, _ = self.thermostat_database_service.select_data_in_range(yesterday,
+                                                                                                                 now)
 
         times = [datetime.datetime.fromtimestamp(x) for x in times]
         plt.figure()
