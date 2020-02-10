@@ -1,6 +1,6 @@
 import gpiozero
 
-RELAY_PIN = 18
+RELAY_PIN = 14
 
 
 class BoilerActuationService:
