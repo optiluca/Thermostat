@@ -18,6 +18,11 @@ REFRESH_PERIOD = 30
 
 class ThermostatService:
     def __init__(self, configuration_file):
+
+        self.parameter_names = ['morning_beginning', 'morning_end',
+                                'evening_beginning', 'evening_end',
+                                'night_temp', 'day_temp', 'away_temp']
+
         self.logger = setup_logger('Thermostat.log')
 
         self.thermostat_database_service = ThermostatDatabaseService(False)
@@ -40,6 +45,9 @@ class ThermostatService:
             set_handler = CommandHandler('set', self.set, pass_args=True,
                                          filters=Filters.user(username=["@optiluca", "@PhilosopherChef"]))
             self.telegram_dispatcher.add_handler(set_handler)
+
+            get_handler = CommandHandler('get', self.get, pass_args=True)
+            self.telegram_dispatcher.add_handler(get_handler)
 
             plot_handler = CommandHandler('plot', self.plot)
             self.telegram_dispatcher.add_handler(plot_handler)
@@ -79,6 +87,30 @@ class ThermostatService:
             context.bot.send_message(chat_id=update.effective_chat.id,
                                      text=message_text)
 
+    def get(self, update, context):
+        try:
+            if len(context.args) > 0:
+                param = context.args[0]
+                if param in self.parameter_names:
+                    value = self.thermostat.get_parameter(param)
+                    params = [param]
+                    values = [value]
+            else:
+                params = self.parameter_names
+                values = []
+                for param in params:
+                    values.append(self.thermostat.get_parameter(param))
+
+            message = ''
+            for (param, value) in zip(params, values):
+                message += '{} = {}\n'.format(param, value)
+
+            context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+
+        except (IndexError, ValueError):
+            update.message.reply_text(
+                'Usage: /get <night_temp/day_temp/away_temp, morning_beginning/morning_end/evening_beginning/evening_end>')
+
     def set(self, update, context):
         try:
             # args[0] should contain the thing to change, args[1] the new value
@@ -88,9 +120,13 @@ class ThermostatService:
             if param in ['morning_beginning', 'morning_end', 'evening_beginning', 'evening_end']:
                 value = to_time(value)
 
-            self.thermostat.set_parameter(param, value)
-
-            update.message.reply_text('{} updated to {}'.format(param, value))
+            if param in self.parameter_names:
+                self.thermostat.set_parameter(param, value)
+                update.message.reply_text('{} updated to {}'.format(param, value))
+            else:
+                update.message.reply_text('Invalid parameter')
+                context.args = []
+                self.get(update, context)
 
         except (IndexError, ValueError):
             update.message.reply_text(
@@ -100,8 +136,9 @@ class ThermostatService:
         now = int(time.time())
         yesterday = now - 3600 * 24
 
-        times, sensor_temps, target_temps, boiler_ons, _ = self.thermostat_database_service.select_data_in_range(yesterday,
-                                                                                                                 now)
+        times, sensor_temps, target_temps, boiler_ons, _ = self.thermostat_database_service.select_data_in_range(
+            yesterday,
+            now)
 
         times = [datetime.datetime.fromtimestamp(x) for x in times]
         plt.figure()

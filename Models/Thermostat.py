@@ -49,11 +49,11 @@ class Thermostat:
         except Exception as e:
             print(e)
 
+    def get_parameter(self, parameter):
+        return getattr(self.targetTemperatureService, parameter)
+
     def set_parameter(self, parameter, value):
-        if parameter in ['morning_beginning', 'morning_end',
-                         'evening_beginning', 'evening_end',
-                         'night_temp', 'day_temp', 'away_temp']:
-            setattr(self.targetTemperatureService, parameter, value)
+        setattr(self.targetTemperatureService, parameter, value)
 
     def _try_get_feedback_temperature(self):
         feedback_temp = self.temperatureMeasurementService.try_get_feedback_temperature()
